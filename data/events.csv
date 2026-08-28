@@ -1,0 +1,6 @@
+event_id,event_time,event_type,entity_id,event_summary,prior_run_id,new_run_id,decision_change
+EV001,2026-08-27 05:30:00,CAPACITY_SIGNAL,C001,NorthStar confirmed two Chicago vans; confidence increased from 72% to 91%.,RUN-DEMO-000,RUN-DEMO-001,RESERVE added for forecast Harbor Retail load.
+EV002,2026-08-27 06:20:00,NEW_LOAD,L1001,Critical Harbor Retail Chicago-to-Atlanta load entered the book.,RUN-DEMO-001,RUN-DEMO-002,C002 moved from L1004 to L1001; L1004 shifted to spot.
+EV003,2026-08-27 07:05:00,CARRIER_UPDATE,C004,Pacific Route Carriers reduced Los Angeles availability confidence to 79%.,RUN-DEMO-002,RUN-DEMO-003,"Tender retained, but confidence warning added."
+EV004,2026-08-27 07:40:00,FORECAST_UPDATE,F001,Harbor Retail recurrence probability increased from 78% to 89%.,RUN-DEMO-003,RUN-DEMO-004,NorthStar unit held until 14:00; release timer refreshed.
+EV005,2026-08-27 08:10:00,QUOTE_RECEIVED,L1012,"Spot quote received at $2,140 for Charlotte-to-North Jersey.",RUN-DEMO-004,RUN-DEMO-005,Expected value of known capacity fell; USE SPOT became preferred.
