@@ -1,0 +1,9 @@
+customer_id,customer_name,service_tier,service_failure_penalty
+CU001,Harbor Retail,PLATINUM,680
+CU002,Crown Foods,GOLD,480
+CU003,Summit Home,STANDARD,310
+CU004,BluePeak Manufacturing,GOLD,450
+CU005,Oak & Main Stores,STANDARD,300
+CU006,Keystone Wholesale,PLATINUM,720
+CU007,Atlas Consumer,GOLD,500
+CU008,Evergreen Markets,STANDARD,325
