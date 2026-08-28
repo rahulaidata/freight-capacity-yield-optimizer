@@ -23,11 +23,21 @@ The app reads deterministic sample assets from `data/`. To regenerate them:
 python scripts/generate_demo_data.py
 ```
 
-## Application views
+## Guided application workflow
 
-1. **Data room** — canonical assets, validation checks, and historical proof-of-value preview.
-2. **Freight & capacity** — open loads, forecast demand, probabilistic capacity, and market views.
-3. **Portfolio optimizer** — current versus optimized economics, reassignments, and reserved capacity.
-4. **Daily decision center** — prioritized recommendations, re-decision events, explanations, and operator feedback.
+1. **Data** — upload open-load and capacity CSVs, or start immediately with the included demo book.
+2. **Validate** — confirm schemas, record counts, economics, history coverage, and required fields.
+3. **Capacity** — review known freight, probabilistic truck supply, and forecasted demand together.
+4. **Settings** — set forecast confidence, service-risk posture, and the capacity evidence floor.
+5. **Optimize** — run an exact portfolio assignment across current and expected freight.
+6. **Decisions** — compare plans, explain every recommendation, capture operator feedback, and export results.
+
+## Deploy on Streamlit Community Cloud
+
+1. Connect this repository and select the `main` branch.
+2. Set the entrypoint to `app.py`.
+3. Deploy. `requirements.txt` is pinned to releases with Python 3.14 wheels.
+
+The deployed app needs no secrets, database, or external API for the demo-data path.
 
 All data is synthetic and all company, customer, and carrier names are fictional.
