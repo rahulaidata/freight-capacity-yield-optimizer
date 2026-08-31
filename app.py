@@ -100,15 +100,15 @@ st.markdown(
       .open-agent:hover { background:#092A61; }
       .section-heading { display:flex; align-items:center; gap:10px; margin:13px 0 8px; color:var(--navy); font-weight:800; font-size:.96rem; }
       .section-heading:after { content:""; height:1px; background:var(--line); flex:1; }
-      .agent-card { position:relative; display:flex; gap:13px; min-height:126px; padding:15px 14px; background:white; border:1px solid var(--line); border-radius:10px; text-decoration:none !important; box-shadow:0 2px 7px rgba(25,52,87,.035); transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease; }
+      .agent-card { position:relative; display:flex; gap:13px; height:142px; box-sizing:border-box; padding:15px 14px; background:white; border:1px solid var(--line); border-radius:10px; text-decoration:none !important; box-shadow:0 2px 7px rgba(25,52,87,.035); transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease; }
       a.agent-card:hover { transform:translateY(-2px); border-color:#8DB7F5; box-shadow:0 7px 18px rgba(25,52,87,.09); }
       .agent-card.available:after { content:""; position:absolute; width:8px; height:8px; border-radius:50%; background:#2FB43B; top:12px; right:12px; }
       .agent-icon { width:48px; height:48px; border-radius:10px; display:grid; place-items:center; flex:0 0 auto; }
       .agent-icon svg { width:29px; height:29px; }
-      .agent-copy { min-width:0; padding-right:5px; }
+      .agent-copy { min-width:0; height:100%; padding-right:5px; display:flex; flex-direction:column; }
       .agent-title { margin:0 0 4px; color:var(--navy); font-size:.89rem; line-height:1.24; font-weight:800; }
       .agent-copy p { margin:0 0 8px; color:#60718B; font-size:.75rem; line-height:1.37; }
-      .agent-tag { display:inline-block; border:1px solid currentColor; border-radius:4px; padding:2px 6px; font-size:.59rem; line-height:1.15; font-weight:850; letter-spacing:.02em; background:white; }
+      .agent-tag { display:inline-block; align-self:flex-start; margin-top:auto; border:1px solid currentColor; border-radius:4px; padding:2px 6px; font-size:.59rem; line-height:1.15; font-weight:850; letter-spacing:.02em; background:white; }
       .tone-blue { color:#1767DA; background:#EEF5FF; } .tone-violet { color:#7C3FD4; background:#F6F0FF; }
       .tone-teal { color:#0795A4; background:#ECFBFC; } .tone-indigo { color:#4B5FE4; background:#F0F2FF; }
       .tone-amber { color:#D68100; background:#FFF7E8; } .tone-coral { color:#ED584C; background:#FFF0EE; }
