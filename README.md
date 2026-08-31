@@ -5,7 +5,7 @@ A client-ready Streamlit MVP with an Arcwise Agent Library landing page and a wo
 ## Agent Library navigation
 
 - **Trucking Consolidation Agent** opens the freight capacity workflow inside this app.
-- **Buyer Consolidation Agent** opens the separate [Arcwise Consolidation demo](https://arcwise-consolidation-demo.streamlit.app/).
+- **Buyer Consolidation Agent** opens the dedicated [Arcwise Buyer Consolidation app](https://agents-buyer-consol.arcwise.app/).
 - The remaining agent cards establish the approved product-suite information architecture for future workflows.
 
 ## What the demo proves

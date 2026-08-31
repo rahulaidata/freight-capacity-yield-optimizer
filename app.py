@@ -154,7 +154,7 @@ REQUIRED_UPLOAD_COLUMNS = {
     },
 }
 
-BUYER_CONSOLIDATION_URL = "https://arcwise-consolidation-demo.streamlit.app/"
+BUYER_CONSOLIDATION_URL = "https://agents-buyer-consol.arcwise.app/"
 
 AGENT_GROUPS = {
     "Consolidation": [
