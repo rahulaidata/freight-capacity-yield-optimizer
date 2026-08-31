@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from html import escape
 from typing import Dict
 
 import altair as alt
@@ -12,7 +13,7 @@ from src.optimizer import Scenario, build_recommendations, run_portfolio
 
 
 st.set_page_config(
-    page_title="CapacityOS · Freight Yield",
+    page_title="Arcwise · Agent Library",
     page_icon="↗",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -22,7 +23,7 @@ st.markdown(
     """
     <style>
       :root {
-        --navy:#123663; --ink:#172235; --muted:#718096; --line:#DDE5EF;
+        --navy:#0E3472; --ink:#11213F; --muted:#667792; --line:#DDE5EF;
         --wash:#F5F8FC; --blue-wash:#EBF3FC; --green:#17A673;
         --amber:#C77A12; --red:#D44D42;
       }
@@ -55,9 +56,12 @@ st.markdown(
       button[data-baseweb="tab"] { padding:10px 4px; }
       .brandbar { display:flex; align-items:center; justify-content:space-between; padding:0 2px 20px; border-bottom:1px solid var(--line); margin-bottom:14px; }
       .brandleft { display:flex; align-items:center; gap:16px; }
-      .mark { width:35px; height:35px; border-radius:10px; background:linear-gradient(145deg,#123663,#2669A8); color:white; display:grid; place-items:center; font-weight:900; font-size:1.25rem; }
+      .arcwise-mark { width:35px; height:35px; display:grid; place-items:center; flex:0 0 auto; }
+      .arcwise-mark svg { width:31px; height:31px; display:block; }
       .brand { font-size:1.22rem; font-weight:850; color:var(--navy); }
       .product { border-left:1px solid #CBD7E5; padding-left:16px; color:#66778D; font-size:1.05rem; }
+      .library-link { color:#66778D !important; text-decoration:none !important; }
+      .library-link:hover { color:var(--navy) !important; }
       .demo-badge { background:#EAF4FF; border:1px solid #C9E0F7; color:#245D93; padding:6px 11px; border-radius:8px; font-size:.78rem; font-weight:750; }
       .step-kicker { color:#7C8CA2; font-size:.84rem; font-weight:750; margin-top:30px; }
       .lead { color:#63758B; font-size:1rem; max-width:850px; margin-bottom:22px; }
@@ -78,6 +82,44 @@ st.markdown(
       .reserve { background:#FFF0CC; color:#8A6107; }
       .release { background:#FCE5E3; color:#A13831; }
       .footer-note { color:#8A98AA; font-size:.78rem; margin-top:28px; }
+      .library-title { margin:22px 0 2px; color:var(--navy); font-size:2.15rem; line-height:1.15; font-weight:850; letter-spacing:-.035em; }
+      .library-subtitle { margin:0 0 8px; color:#657692; font-size:1rem; }
+      .library-controls [data-testid="stTextInput"] input,
+      .library-controls [data-testid="stSelectbox"] > div > div { background:white; }
+      .featured-agent { display:grid; grid-template-columns:minmax(330px,1.35fr) minmax(440px,1.55fr) 180px; gap:26px; align-items:center; background:#F8FBFF; border:1px solid #91B8F8; border-radius:12px; padding:18px 22px; margin:10px 0 16px; }
+      .featured-identity { display:flex; gap:18px; align-items:center; min-width:0; }
+      .featured-icon { width:96px; height:96px; border-radius:13px; background:white; display:grid; place-items:center; color:#0E3A83; box-shadow:0 4px 14px rgba(20,54,105,.06); flex:0 0 auto; }
+      .featured-icon svg { width:62px; height:62px; }
+      .featured-copy h3 { color:var(--navy); font-size:1.18rem !important; margin:0 0 6px !important; }
+      .featured-copy p { margin:0 0 8px; font-size:.88rem; line-height:1.42; }
+      .mini-flow { display:grid; grid-template-columns:repeat(6,1fr); position:relative; gap:6px; }
+      .mini-flow:before { content:""; position:absolute; height:1px; background:#AFC9F4; left:8%; right:8%; top:17px; }
+      .mini-step { position:relative; z-index:1; text-align:center; color:#15366E; font-size:.72rem; }
+      .mini-step span { width:34px; height:34px; display:grid; place-items:center; margin:0 auto 6px; border:1px solid #91B8F8; background:white; color:#1261D8; border-radius:50%; font-weight:800; }
+      .open-agent { display:inline-flex; align-items:center; justify-content:center; min-height:44px; border-radius:8px; background:var(--navy); color:white !important; text-decoration:none !important; font-weight:750; padding:0 17px; white-space:nowrap; }
+      .open-agent:hover { background:#092A61; }
+      .section-heading { display:flex; align-items:center; gap:10px; margin:13px 0 8px; color:var(--navy); font-weight:800; font-size:.96rem; }
+      .section-heading:after { content:""; height:1px; background:var(--line); flex:1; }
+      .agent-card { position:relative; display:flex; gap:13px; min-height:126px; padding:15px 14px; background:white; border:1px solid var(--line); border-radius:10px; text-decoration:none !important; box-shadow:0 2px 7px rgba(25,52,87,.035); transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease; }
+      a.agent-card:hover { transform:translateY(-2px); border-color:#8DB7F5; box-shadow:0 7px 18px rgba(25,52,87,.09); }
+      .agent-card.available:after { content:""; position:absolute; width:8px; height:8px; border-radius:50%; background:#2FB43B; top:12px; right:12px; }
+      .agent-icon { width:48px; height:48px; border-radius:10px; display:grid; place-items:center; flex:0 0 auto; }
+      .agent-icon svg { width:29px; height:29px; }
+      .agent-copy { min-width:0; padding-right:5px; }
+      .agent-copy h4 { margin:0 0 4px; color:var(--navy); font-size:.89rem; line-height:1.24; }
+      .agent-copy p { margin:0 0 8px; color:#60718B; font-size:.75rem; line-height:1.37; }
+      .agent-tag { display:inline-block; border:1px solid currentColor; border-radius:4px; padding:2px 6px; font-size:.59rem; line-height:1.15; font-weight:850; letter-spacing:.02em; background:white; }
+      .tone-blue { color:#1767DA; background:#EEF5FF; } .tone-violet { color:#7C3FD4; background:#F6F0FF; }
+      .tone-teal { color:#0795A4; background:#ECFBFC; } .tone-indigo { color:#4B5FE4; background:#F0F2FF; }
+      .tone-amber { color:#D68100; background:#FFF7E8; } .tone-coral { color:#ED584C; background:#FFF0EE; }
+      .tone-purple { color:#8741C5; background:#F8F0FF; } .tone-green { color:#4B961F; background:#F1F9EC; }
+      .tone-red { color:#D94F3F; background:#FFF0ED; } .tone-cyan { color:#0099C4; background:#ECFAFE; }
+      .tone-slate { color:#5263D9; background:#F0F2FF; }
+      @media (max-width:1000px) {
+        .featured-agent { grid-template-columns:1fr; }
+        .featured-identity { align-items:flex-start; }
+        .open-agent { justify-self:start; }
+      }
       #MainMenu, footer { visibility:hidden; }
     </style>
     """,
@@ -111,6 +153,152 @@ REQUIRED_UPLOAD_COLUMNS = {
         "availability_confidence", "source_type",
     },
 }
+
+BUYER_CONSOLIDATION_URL = "https://arcwise-consolidation-demo.streamlit.app/"
+
+AGENT_GROUPS = {
+    "Consolidation": [
+        {
+            "name": "Buyer Consolidation Agent",
+            "description": "Show any client, in their own numbers, whether buyer's consolidation pays off.",
+            "tag": "SELL-SIDE",
+            "tone": "violet",
+            "icon": "users",
+            "url": BUYER_CONSOLIDATION_URL,
+        },
+        {
+            "name": "Container Shipment Consolidation Agent",
+            "description": "Pack every client's cargo into the fewest containers the schedule allows.",
+            "tag": "OPTIMIZATION",
+            "tone": "amber",
+            "icon": "container",
+        },
+        {
+            "name": "Forward Consolidation Agent",
+            "description": "See next month's containers before they're booked, and merge them early.",
+            "tag": "PLANNING",
+            "tone": "blue",
+            "icon": "calendar",
+        },
+        {
+            "name": "Consolidation Forecast Agent",
+            "description": "Group cargo into containers weeks before the booking window opens.",
+            "tag": "FORECAST",
+            "tone": "teal",
+            "icon": "chart",
+        },
+    ],
+    "Trucking": [
+        {
+            "name": "Trucking Consolidation Agent",
+            "description": "Merge the truck moves running the same lane on the same day.",
+            "tag": "TRUCKING",
+            "tone": "blue",
+            "icon": "truck",
+            "url": "?agent=trucking",
+        },
+        {
+            "name": "Drayage Consolidation Agent",
+            "description": "Stop tendering two trucks where one round trip clears both containers.",
+            "tag": "DRAYAGE",
+            "tone": "teal",
+            "icon": "drayage",
+        },
+    ],
+    "D&D & Charges": [
+        {
+            "name": "Detention & Demurrage Agent",
+            "description": "Check every D&D line against free time before it reaches the invoice.",
+            "tag": "CHARGES",
+            "tone": "coral",
+            "icon": "dollar",
+        },
+        {
+            "name": "Demurrage Audit Agent",
+            "description": "Catch the miscounted free days before you pay the carrier for them.",
+            "tag": "AUDIT",
+            "tone": "purple",
+            "icon": "clipboard",
+        },
+        {
+            "name": "Charge Recovery Agent",
+            "description": "Rebill the D&D that belongs to the client and challenge the rest.",
+            "tag": "BILLING",
+            "tone": "green",
+            "icon": "file",
+        },
+        {
+            "name": "D&D Dispute Agent",
+            "description": "Pull the port record and build the dispute the trucker can't wave off.",
+            "tag": "DISPUTES",
+            "tone": "amber",
+            "icon": "scale",
+        },
+    ],
+    "Visibility": [
+        {
+            "name": "Shipment Inbox Agent",
+            "description": "Read every shipment email and say where the freight actually stands.",
+            "tag": "VISIBILITY",
+            "tone": "cyan",
+            "icon": "inbox",
+        },
+        {
+            "name": "Shipment Story Agent",
+            "description": "Ask any shipment what happened and get it from the email trail.",
+            "tag": "IN-TRANSIT",
+            "tone": "slate",
+            "icon": "route",
+        },
+    ],
+}
+
+
+def arcwise_logo() -> str:
+    return """
+    <span class="arcwise-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 24.5 13.2 6l3.1 6.1-6.2 12.4H4Z" fill="#2D65D5"/>
+        <path d="m14.8 24.5 5-9.9 7.9 9.9h-6.4l-3.9-5-2.6 5Z" fill="#164DAF"/>
+      </svg>
+    </span>
+    """
+
+
+def agent_icon(name: str) -> str:
+    paths = {
+        "users": '<circle cx="9" cy="8" r="3"/><circle cx="18" cy="9" r="2.5"/><path d="M3 21v-2c0-3.2 2.7-5.5 6-5.5s6 2.3 6 5.5v2"/><path d="M15 14.5c3.3 0 6 1.9 6 4.5v2"/>',
+        "container": '<path d="M3 7h18v14H3z"/><path d="M7 7v14M11 7v14M15 7v14M19 7v14M7 4h10"/>',
+        "calendar": '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M8 14h3M14 14h3M8 18h3"/>',
+        "chart": '<path d="M4 21V11h4v10M10 21V5h4v16M16 21V8h4v13"/>',
+        "truck": '<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/>',
+        "drayage": '<path d="M5 7h14v14H5zM3 7h18M8 7V4h8v3M9 11v6M15 11v6"/>',
+        "dollar": '<circle cx="12" cy="12" r="9"/><path d="M15 8.5c-.8-.7-1.7-1-2.9-1-1.7 0-3.1.8-3.1 2.2 0 3.6 6.2 1.8 6.2 5.4 0 1.4-1.3 2.4-3.2 2.4-1.3 0-2.5-.4-3.3-1.2M12 5v14"/>',
+        "clipboard": '<rect x="5" y="5" width="14" height="17" rx="2"/><path d="M9 5V3h6v2M8 13l2.5 2.5L16 10"/>',
+        "file": '<path d="M6 3h8l5 5v13H6zM14 3v5h5"/><path d="M14.5 12c-.6-.5-1.3-.7-2.1-.7-1.2 0-2.2.6-2.2 1.5 0 2.4 4.4 1.3 4.4 3.7 0 1-1 1.7-2.3 1.7-.9 0-1.8-.3-2.4-.8M12.3 9.5V20"/>',
+        "scale": '<path d="M12 4v17M6 6h12M5 6l-3 7h6L5 6ZM19 6l-3 7h6l-3-7ZM8 21h8"/>',
+        "inbox": '<path d="M4 5h16l2 10v5H2v-5L4 5Z"/><path d="M2 15h6l2 3h4l2-3h6"/>',
+        "route": '<circle cx="17" cy="6" r="3"/><path d="M17 9c-3 4-3 5-3 5M5 7h4a3 3 0 0 1 0 6H6a3 3 0 0 0 0 6h13"/>',
+    }
+    path = paths.get(name, paths["chart"])
+    return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{path}</svg>'
+
+
+def agent_card(agent: dict) -> str:
+    url = agent.get("url")
+    wrapper = "a" if url else "div"
+    href = f' href="{escape(url, quote=True)}" target="_self"' if url else ""
+    available = " available" if url else ""
+    return f"""
+    <{wrapper} class="agent-card{available}"{href}>
+      <span class="agent-icon tone-{agent['tone']}">{agent_icon(agent['icon'])}</span>
+      <span class="agent-copy">
+        <h4>{escape(agent['name'])}</h4>
+        <p>{escape(agent['description'])}</p>
+        <span class="agent-tag tone-{agent['tone']}">{escape(agent['tag'])}</span>
+      </span>
+    </{wrapper}>
+    """
 
 
 @st.cache_data(show_spinner=False)
@@ -185,14 +373,120 @@ def render_header() -> None:
         f"""
         <div class="brandbar">
           <div class="brandleft">
-            <div class="mark">↗</div><div class="brand">CapacityOS</div>
-            <div class="product">Freight Yield Optimizer</div>
+            {arcwise_logo()}<div class="brand">Arcwise</div>
+            <a class="product library-link" href="./" target="_self">Trucking Consolidation</a>
           </div>
           <div class="demo-badge">{badge}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_library_header() -> None:
+    st.markdown(
+        f"""
+        <div class="brandbar">
+          <div class="brandleft">
+            {arcwise_logo()}<div class="brand">Arcwise</div>
+            <div class="product">Agent Library</div>
+          </div>
+          <div class="demo-badge">Illustrative data</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_featured_agent() -> None:
+    steps = "".join(
+        f'<div class="mini-step"><span>{index}</span>{label}</div>'
+        for index, label in enumerate(STEPS, start=1)
+    )
+    st.markdown(
+        f"""
+        <div class="featured-agent">
+          <div class="featured-identity">
+            <div class="featured-icon">{agent_icon('truck')}</div>
+            <div class="featured-copy">
+              <h3>Trucking Consolidation Agent</h3>
+              <p>Merge the truck moves running the same lane on the same day.</p>
+              <span class="agent-tag tone-blue">TRUCKING</span>
+            </div>
+          </div>
+          <div class="mini-flow">{steps}</div>
+          <a class="open-agent" href="?agent=trucking" target="_self">Open workflow&nbsp; →</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_agent_library() -> None:
+    render_library_header()
+    st.markdown('<div class="library-title">Agent Library</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="library-subtitle">Deploy specialist workflows across your freight operation</div>',
+        unsafe_allow_html=True,
+    )
+
+    search_col, filter_col, status_col = st.columns([3.8, 4.1, 1.35], vertical_alignment="bottom")
+    with search_col:
+        search = st.text_input(
+            "Search agents",
+            placeholder="Search agents…",
+            label_visibility="collapsed",
+        )
+    with filter_col:
+        category = st.segmented_control(
+            "Agent category",
+            ["All", "Consolidation", "Trucking", "D&D", "Visibility"],
+            default="All",
+            label_visibility="collapsed",
+        )
+    with status_col:
+        st.selectbox(
+            "Agent status",
+            ["All statuses"],
+            label_visibility="collapsed",
+            disabled=True,
+        )
+
+    query = search.strip().casefold()
+    selected = category or "All"
+    featured_text = "trucking consolidation agent merge the truck moves running the same lane on the same day"
+    if selected in ("All", "Trucking") and (not query or query in featured_text):
+        render_featured_agent()
+
+    category_map = {
+        "All": set(AGENT_GROUPS),
+        "Consolidation": {"Consolidation"},
+        "Trucking": {"Trucking"},
+        "D&D": {"D&D & Charges"},
+        "Visibility": {"Visibility"},
+    }
+    visible_cards = 0
+    for group, agents in AGENT_GROUPS.items():
+        if group not in category_map[selected]:
+            continue
+        matches = [
+            agent
+            for agent in agents
+            if not query
+            or query in f"{agent['name']} {agent['description']} {agent['tag']}".casefold()
+        ]
+        if not matches:
+            continue
+        visible_cards += len(matches)
+        st.markdown(f'<div class="section-heading">{escape(group)}</div>', unsafe_allow_html=True)
+        for start in range(0, len(matches), 4):
+            row = matches[start : start + 4]
+            columns = st.columns(4)
+            for column, agent in zip(columns, row):
+                column.markdown(agent_card(agent), unsafe_allow_html=True)
+
+    if visible_cards == 0 and not (selected in ("All", "Trucking") and query in featured_text):
+        st.info("No agents match that search yet.")
 
 
 def render_stepper() -> None:
@@ -814,20 +1108,24 @@ def render_decisions_step(assets: Dict[str, pd.DataFrame]) -> None:
 
 
 initialize_state()
-render_header()
-render_stepper()
-assets = active_assets()
-step = st.session_state.workflow_step
 
-if step == 1:
-    render_data_step()
-elif step == 2:
-    render_validate_step(assets)
-elif step == 3:
-    render_capacity_step(assets)
-elif step == 4:
-    render_settings_step()
-elif step == 5:
-    render_optimize_step(assets)
+if st.query_params.get("agent") == "trucking":
+    render_header()
+    render_stepper()
+    assets = active_assets()
+    step = st.session_state.workflow_step
+
+    if step == 1:
+        render_data_step()
+    elif step == 2:
+        render_validate_step(assets)
+    elif step == 3:
+        render_capacity_step(assets)
+    elif step == 4:
+        render_settings_step()
+    elif step == 5:
+        render_optimize_step(assets)
+    else:
+        render_decisions_step(assets)
 else:
-    render_decisions_step(assets)
+    render_agent_library()

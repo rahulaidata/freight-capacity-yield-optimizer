@@ -1,6 +1,12 @@
 # Freight Capacity Yield Optimizer
 
-A client-ready Streamlit MVP that demonstrates portfolio-level carrier capacity allocation using a synthetic freight brokerage dataset.
+A client-ready Streamlit MVP with an Arcwise Agent Library landing page and a working portfolio-level carrier capacity allocation workflow using a synthetic freight brokerage dataset.
+
+## Agent Library navigation
+
+- **Trucking Consolidation Agent** opens the freight capacity workflow inside this app.
+- **Buyer Consolidation Agent** opens the separate [Arcwise Consolidation demo](https://arcwise-consolidation-demo.streamlit.app/).
+- The remaining agent cards establish the approved product-suite information architecture for future workflows.
 
 ## What the demo proves
 
