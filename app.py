@@ -106,7 +106,7 @@ st.markdown(
       .agent-icon { width:48px; height:48px; border-radius:10px; display:grid; place-items:center; flex:0 0 auto; }
       .agent-icon svg { width:29px; height:29px; }
       .agent-copy { min-width:0; padding-right:5px; }
-      .agent-copy h4 { margin:0 0 4px; color:var(--navy); font-size:.89rem; line-height:1.24; }
+      .agent-title { margin:0 0 4px; color:var(--navy); font-size:.89rem; line-height:1.24; font-weight:800; }
       .agent-copy p { margin:0 0 8px; color:#60718B; font-size:.75rem; line-height:1.37; }
       .agent-tag { display:inline-block; border:1px solid currentColor; border-radius:4px; padding:2px 6px; font-size:.59rem; line-height:1.15; font-weight:850; letter-spacing:.02em; background:white; }
       .tone-blue { color:#1767DA; background:#EEF5FF; } .tone-violet { color:#7C3FD4; background:#F6F0FF; }
@@ -257,9 +257,19 @@ AGENT_GROUPS = {
 def arcwise_logo() -> str:
     return """
     <span class="arcwise-mark" aria-hidden="true">
-      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M4 24.5 13.2 6l3.1 6.1-6.2 12.4H4Z" fill="#2D65D5"/>
-        <path d="m14.8 24.5 5-9.9 7.9 9.9h-6.4l-3.9-5-2.6 5Z" fill="#164DAF"/>
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="arcwise-a" x1="7.483" y1="0" x2="7.483" y2="20.213" gradientUnits="userSpaceOnUse" gradientTransform="translate(1.788 3.584) scale(.83276)">
+            <stop stop-color="#3E6AC5"/><stop offset="1" stop-color="#808692" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="arcwise-b" x1="16.083" y1="6.506" x2="16.083" y2="20.213" gradientUnits="userSpaceOnUse" gradientTransform="translate(1.788 3.584) scale(.83276)">
+            <stop stop-color="#3E6AC5"/><stop offset="1" stop-color="#808692" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M2.333 20.416h3.481l7.893-13.93-1.542-2.903-9.832 16.833Z" fill="#093796"/>
+        <path d="M2.333 20.416h3.481l7.893-13.93-1.542-2.903-9.832 16.833Z" fill="url(#arcwise-a)"/>
+        <path d="M8.694 20.416h3.441l3.118-5.418 2.976 5.418h3.439L15.247 9.001 8.694 20.416Z" fill="#093796"/>
+        <path d="M8.694 20.416h3.441l3.118-5.418 2.976 5.418h3.439L15.247 9.001 8.694 20.416Z" fill="url(#arcwise-b)"/>
       </svg>
     </span>
     """
@@ -287,13 +297,15 @@ def agent_icon(name: str) -> str:
 def agent_card(agent: dict) -> str:
     url = agent.get("url")
     wrapper = "a" if url else "div"
-    href = f' href="{escape(url, quote=True)}" target="_self"' if url else ""
+    target = "_blank" if url and url.startswith("https://") else "_self"
+    rel = ' rel="noopener noreferrer"' if target == "_blank" else ""
+    href = f' href="{escape(url, quote=True)}" target="{target}"{rel}' if url else ""
     available = " available" if url else ""
     return f"""
     <{wrapper} class="agent-card{available}"{href}>
       <span class="agent-icon tone-{agent['tone']}">{agent_icon(agent['icon'])}</span>
       <span class="agent-copy">
-        <h4>{escape(agent['name'])}</h4>
+        <div class="agent-title">{escape(agent['name'])}</div>
         <p>{escape(agent['description'])}</p>
         <span class="agent-tag tone-{agent['tone']}">{escape(agent['tag'])}</span>
       </span>
@@ -368,7 +380,6 @@ def validate_required(frame: pd.DataFrame, asset_name: str) -> list[str]:
 
 
 def render_header() -> None:
-    badge = "Illustrative data" if st.session_state.data_mode != "Uploaded CSVs" else "Session upload"
     st.markdown(
         f"""
         <div class="brandbar">
@@ -376,7 +387,6 @@ def render_header() -> None:
             {arcwise_logo()}<div class="brand">Arcwise</div>
             <a class="product library-link" href="./" target="_self">Trucking Consolidation</a>
           </div>
-          <div class="demo-badge">{badge}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -391,7 +401,6 @@ def render_library_header() -> None:
             {arcwise_logo()}<div class="brand">Arcwise</div>
             <div class="product">Agent Library</div>
           </div>
-          <div class="demo-badge">Illustrative data</div>
         </div>
         """,
         unsafe_allow_html=True,
