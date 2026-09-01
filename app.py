@@ -922,6 +922,9 @@ def reset_dispatch_rule_defaults() -> None:
     st.session_state.reserve_truck_target = 2
     st.session_state.reliability_spend_allowance = 250
     st.session_state.capacity_confirmation_hours = 4
+    st.session_state.reserve_truck_target_control = 2
+    st.session_state.reliability_spend_allowance_control = 250
+    st.session_state.capacity_confirmation_hours_control = 4
 
 
 def render_settings_step() -> None:
@@ -933,42 +936,48 @@ def render_settings_step() -> None:
     left, middle, right = st.columns(3)
     with left:
         st.markdown("#### Trucks to keep open for late tenders")
-        st.slider(
+        reserve_truck_target = st.slider(
             "Reserved trucks",
             0,
             4,
+            value=int(st.session_state.reserve_truck_target),
             step=1,
             format="%d trucks",
             help="Keeps this many trucks available for late or recurring tenders before assigning the rest.",
             label_visibility="collapsed",
-            key="reserve_truck_target",
+            key="reserve_truck_target_control",
         )
+        st.session_state.reserve_truck_target = int(reserve_truck_target)
         st.caption("Leave this many trucks unassigned until the late tender window closes.")
     with middle:
         st.markdown("#### Extra spend for a more reliable carrier")
-        st.slider(
+        reliability_spend_allowance = st.slider(
             "Reliability spend allowance",
             0,
             500,
+            value=int(st.session_state.reliability_spend_allowance),
             step=50,
             format="$%d per load",
             help="Allows the optimizer to justify this much additional buy cost when carrier history shows materially stronger service.",
             label_visibility="collapsed",
-            key="reliability_spend_allowance",
+            key="reliability_spend_allowance_control",
         )
+        st.session_state.reliability_spend_allowance = int(reliability_spend_allowance)
         st.caption("Allow this much extra when it materially improves pickup and delivery reliability.")
     with right:
         st.markdown("#### Carrier confirmation age")
-        st.slider(
+        capacity_confirmation_hours = st.slider(
             "Maximum confirmation age",
             1,
             12,
+            value=int(st.session_state.capacity_confirmation_hours),
             step=1,
-            format="%d hours",
+            format="%d hr",
             help="Ignores carrier capacity that has not been reconfirmed within this many hours.",
             label_visibility="collapsed",
-            key="capacity_confirmation_hours",
+            key="capacity_confirmation_hours_control",
         )
+        st.session_state.capacity_confirmation_hours = int(capacity_confirmation_hours)
         st.caption("Ignore a truck unless its availability was reconfirmed within this window.")
 
     st.markdown(
