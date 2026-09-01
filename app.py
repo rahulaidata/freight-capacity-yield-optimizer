@@ -91,6 +91,13 @@ st.markdown(
       .callout { background:#EEF4FC; border:1px solid #D4E1F1; border-radius:10px; padding:14px 17px; color:#34516F; margin:12px 0 20px; }
       .callout.success { background:#EDF9F4; border-color:#CDEBDD; color:#23664F; }
       .callout.warning { background:#FFF8EC; border-color:#F1DFC0; color:#825B22; }
+      div[data-testid="stHorizontalBlock"]:has(a[href="#trucks-to-keep-open-for-late-tenders"]) h4 {
+        height:5.1rem; min-height:5.1rem; box-sizing:border-box;
+        margin-bottom:.15rem !important; display:flex; align-items:flex-start;
+      }
+      div[data-testid="stHorizontalBlock"]:has(a[href="#trucks-to-keep-open-for-late-tenders"]) [data-testid="stCaptionContainer"] {
+        min-height:3.5rem;
+      }
       .checkline { display:flex; gap:11px; padding:8px 0; color:#42546A; }
       .check { color:var(--green); font-weight:900; }
       .build-stage { display:flex; gap:12px; padding:10px 0; }
