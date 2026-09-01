@@ -921,30 +921,30 @@ def render_settings_step() -> None:
 def render_optimize_step(assets: Dict[str, pd.DataFrame]) -> None:
     step_title(
         5,
-        "Build the decision model",
-        "The portfolio engine will create feasible load × carrier choices, price risk and fallback coverage, and allocate every usable capacity unit once.",
+        "Review today’s dispatch plan",
+        "We’ll compare every open load with the trucks you can use, then recommend where each truck should go—or whether to hold it for likely upcoming freight.",
     )
     open_loads = assets["open_loads"]
     capacity = assets["capacity_signals"]
     forecast = assets["forecast_demand"]
     checks = [
-        f"Reading {len(open_loads):,} open loads across {open_loads['lane_id'].nunique()} lanes.",
-        f"Evaluating {int(capacity['truck_count'].sum())} signaled trucks from {capacity['carrier_id'].nunique()} carriers.",
-        f"Protecting option value for {forecast['expected_load_count'].sum():.1f} expected future loads.",
-        f"Applying a {percent(st.session_state.confidence_floor)} capacity floor and {st.session_state.risk_multiplier:.1f}× service-risk penalty.",
+        f"Checking {len(open_loads):,} open loads across {open_loads['lane_id'].nunique()} lanes.",
+        f"Checking {int(capacity['truck_count'].sum())} available trucks from {capacity['carrier_id'].nunique()} carriers.",
+        "Keeping likely upcoming loads in view so today’s choices do not leave tomorrow’s freight uncovered.",
+        "Using capacity we can reasonably trust and giving reliable service more weight than the cheapest rate.",
     ]
     for check in checks:
         st.markdown(f'<div class="checkline"><span class="check">✓</span><span>{check}</span></div>', unsafe_allow_html=True)
 
     st.markdown(
-        '<div class="callout"><b>What will run:</b> an exact maximum-value assignment across the complete demand book. The baseline covers loads first-come using the cheapest visible capacity; the optimized plan prices the opportunity cost of using that truck elsewhere.</div>',
+        '<div class="callout"><b>What happens next:</b> we compare all open loads and available trucks at the same time. The recommended plan puts each truck where it creates the most value, while keeping backup coverage and likely upcoming freight in mind.</div>',
         unsafe_allow_html=True,
     )
 
     back_col, run_col, _ = st.columns([1, 1.7, 5])
     if back_col.button("Back", use_container_width=True):
         go_to(4)
-    if run_col.button("Run portfolio optimizer", type="primary", use_container_width=True):
+    if run_col.button("Build recommended plan", type="primary", use_container_width=True):
         scenario = Scenario(
             forecast_multiplier=st.session_state.forecast_multiplier,
             risk_multiplier=st.session_state.risk_multiplier,
