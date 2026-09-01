@@ -12,6 +12,29 @@ class Scenario:
     forecast_multiplier: float = 1.0
     risk_multiplier: float = 1.0
     capacity_confidence_floor: float = 0.45
+    reserve_truck_target: int = 2
+    reliability_spend_allowance: float = 250.0
+    capacity_confirmation_hours: int = 4
+
+
+def filter_recent_capacity(
+    open_loads: pd.DataFrame,
+    capacity_signals: pd.DataFrame,
+    confirmation_hours: int,
+) -> pd.DataFrame:
+    """Keep capacity that was reconfirmed within the operator's selected window."""
+    if capacity_signals.empty or "observed_at" not in capacity_signals.columns:
+        return capacity_signals.copy()
+    observed = pd.to_datetime(capacity_signals["observed_at"], errors="coerce")
+    reference_times = [observed.max()]
+    if "load_created_timestamp" in open_loads.columns:
+        reference_times.append(pd.to_datetime(open_loads["load_created_timestamp"], errors="coerce").max())
+    valid_reference_times = [value for value in reference_times if pd.notna(value)]
+    if not valid_reference_times:
+        return capacity_signals.copy()
+    planning_time = max(valid_reference_times)
+    cutoff = planning_time - pd.Timedelta(hours=int(confirmation_hours))
+    return capacity_signals.loc[observed >= cutoff].copy()
 
 
 def expand_capacity(capacity_signals: pd.DataFrame, confidence_floor: float = 0.45) -> pd.DataFrame:
@@ -82,7 +105,12 @@ def build_candidates(
     carrier_preferences: pd.DataFrame,
     scenario: Scenario,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    units = expand_capacity(capacity_signals, scenario.capacity_confidence_floor)
+    recent_capacity = filter_recent_capacity(
+        open_loads,
+        capacity_signals,
+        scenario.capacity_confirmation_hours,
+    )
+    units = expand_capacity(recent_capacity, scenario.capacity_confidence_floor)
     demand = _demand_book(open_loads, forecast, scenario)
     stats = carrier_lane_stats.set_index(["carrier_id", "lane_id"]).to_dict("index")
     prefs = carrier_preferences.groupby("carrier_id")["lane_id"].apply(set).to_dict()
@@ -129,8 +157,12 @@ def build_candidates(
             )
             failure_cost = ((1.0 - acceptance) * urgency_penalty + (1.0 - service) * service_penalty)
             failure_cost *= scenario.risk_multiplier
+            reliability_score = 0.45 * acceptance + 0.55 * service
+            reliability_credit = float(scenario.reliability_spend_allowance) * min(
+                1.0, max(0.0, (reliability_score - 0.80) / 0.20)
+            )
             fallback_buy = float(d["fallback_buy_rate"])
-            raw_value = fallback_buy - expected_buy - failure_cost
+            raw_value = fallback_buy - expected_buy - failure_cost + reliability_credit
             probability = float(d["arrival_probability"])
             weighted_value = raw_value * probability
             candidates.append(
@@ -152,6 +184,8 @@ def build_candidates(
                     "availability_confidence": round(confidence, 4),
                     "arrival_probability": round(probability, 4),
                     "expected_failure_cost": round(failure_cost, 2),
+                    "reliability_score": round(reliability_score, 4),
+                    "reliability_credit": round(reliability_credit, 2),
                     "incremental_capacity_value": round(raw_value, 2),
                     "weighted_value": round(weighted_value, 2),
                     "historical_support_loads": support,
@@ -161,7 +195,7 @@ def build_candidates(
     return pd.DataFrame(candidates), demand
 
 
-def _optimize_exact(candidates: pd.DataFrame) -> pd.DataFrame:
+def _optimize_exact(candidates: pd.DataFrame, reserve_truck_target: int = 2) -> pd.DataFrame:
     """Exact maximum-value assignment using a capacity-unit bitmask dynamic program."""
     if candidates.empty:
         return candidates.copy()
@@ -173,24 +207,34 @@ def _optimize_exact(candidates: pd.DataFrame) -> pd.DataFrame:
         for demand_id, group in candidates.groupby("demand_id")
     }
 
-    states: Dict[int, Tuple[float, List[dict]]] = {0: (0.0, [])}
+    states: Dict[Tuple[int, int], Tuple[float, List[dict]]] = {(0, 0): (0.0, [])}
     for demand_id in demand_ids:
         next_states = dict(states)
-        for mask, (score, assignments) in states.items():
+        for (mask, reserved_count), (score, assignments) in states.items():
             for candidate in by_demand[demand_id]:
                 value = float(candidate["weighted_value"])
                 if value <= 0:
                     continue
+                if candidate["demand_type"] == "FORECAST":
+                    if reserved_count >= int(reserve_truck_target):
+                        continue
                 bit = 1 << unit_index[candidate["capacity_unit_id"]]
                 if mask & bit:
                     continue
                 new_mask = mask | bit
+                new_reserved_count = reserved_count + int(candidate["demand_type"] == "FORECAST")
                 new_score = score + value
-                previous = next_states.get(new_mask)
+                state_key = (new_mask, new_reserved_count)
+                previous = next_states.get(state_key)
                 if previous is None or new_score > previous[0]:
-                    next_states[new_mask] = (new_score, assignments + [candidate])
+                    next_states[state_key] = (new_score, assignments + [candidate])
         states = next_states
-    best_score, best_assignments = max(states.values(), key=lambda item: item[0])
+    target = max(0, int(reserve_truck_target))
+    target_states = [
+        state for (_, reserved_count), state in states.items() if reserved_count == target
+    ]
+    eligible_states = target_states or list(states.values())
+    best_score, best_assignments = max(eligible_states, key=lambda item: item[0])
     result = pd.DataFrame(best_assignments)
     if not result.empty:
         result["portfolio_objective_value"] = round(best_score, 2)
@@ -271,7 +315,7 @@ def run_portfolio(
         carrier_preferences,
         scenario,
     )
-    optimized = _optimize_exact(candidates)
+    optimized = _optimize_exact(candidates, scenario.reserve_truck_target)
     current = _current_plan(candidates, demand)
     optimized_open = optimized[optimized["demand_type"] == "OPEN"].copy() if not optimized.empty else optimized
     optimized_forecast = (
@@ -364,4 +408,3 @@ def build_recommendations(result: dict, open_loads: pd.DataFrame, carriers: pd.D
     return pd.DataFrame(recommendations).sort_values(
         ["expected_incremental_margin", "confidence"], ascending=[False, False]
     )
-
