@@ -1234,33 +1234,35 @@ def render_decisions_step(assets: Dict[str, pd.DataFrame]) -> None:
         )
 
     st.markdown("#### Export and continue")
-    export_cols = st.columns([1.3, 1.3, 1.3, 3])
-    export_cols[0].download_button(
+    has_feedback = bool(st.session_state.decision_log)
+    action_cols = st.columns(5 if has_feedback else 4)
+    action_cols[0].download_button(
         "Download decisions",
         recommendations.to_csv(index=False).encode("utf-8"),
         file_name="capacity_recommendations.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
-    export_cols[1].download_button(
+    action_cols[1].download_button(
         "Download assignments",
         result["optimized_assignments"].to_csv(index=False).encode("utf-8"),
         file_name="optimized_assignments.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
-    if st.session_state.decision_log:
-        export_cols[2].download_button(
+    action_index = 2
+    if has_feedback:
+        action_cols[action_index].download_button(
             "Download feedback",
             pd.DataFrame(st.session_state.decision_log).to_csv(index=False).encode("utf-8"),
             file_name="operator_feedback.csv",
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
-    rerun_col, restart_col, _ = st.columns([1.5, 1.5, 4])
-    if rerun_col.button("Change assumptions", use_container_width=True):
+        action_index += 1
+    if action_cols[action_index].button("Change assumptions", type="primary", width="stretch"):
         go_to(4)
-    if restart_col.button("Start with new data", use_container_width=True):
+    if action_cols[action_index + 1].button("Start with new data", type="primary", width="stretch"):
         reset_workflow()
     st.markdown(
         f'<div class="footer-note">Run created {st.session_state.get("run_at", "this session")} · Synthetic demo context · Decision support only; no carrier tender was executed.</div>',
