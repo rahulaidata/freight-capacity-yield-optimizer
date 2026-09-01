@@ -230,6 +230,13 @@ AGENT_GROUPS = {
             "tone": "teal",
             "icon": "drayage",
         },
+        {
+            "name": "LTL-to-FTL Consolidation Agent",
+            "description": "Combine compatible LTL moves across plants into full truckloads before tendering.",
+            "tag": "LTL → FTL",
+            "tone": "indigo",
+            "icon": "ltl-ftl",
+        },
     ],
     "D&D & Charges": [
         {
@@ -309,6 +316,7 @@ def agent_icon(name: str) -> str:
         "chart": '<path d="M4 21V11h4v10M10 21V5h4v16M16 21V8h4v13"/>',
         "truck": '<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7z"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/>',
         "drayage": '<path d="M5 7h14v14H5zM3 7h18M8 7V4h8v3M9 11v6M15 11v6"/>',
+        "ltl-ftl": '<rect x="2" y="4" width="5" height="5" rx=".5"/><rect x="2" y="13" width="5" height="5" rx=".5"/><path d="M8 6.5h3M8 15.5h3M10 6.5v9M10 11h3"/><path d="M13 7h6v9h-6zM19 10h2l1 2v4h-3z"/><circle cx="15.5" cy="18" r="1.5"/><circle cx="20.5" cy="18" r="1.5"/>',
         "dollar": '<circle cx="12" cy="12" r="9"/><path d="M15 8.5c-.8-.7-1.7-1-2.9-1-1.7 0-3.1.8-3.1 2.2 0 3.6 6.2 1.8 6.2 5.4 0 1.4-1.3 2.4-3.2 2.4-1.3 0-2.5-.4-3.3-1.2M12 5v14"/>',
         "clipboard": '<rect x="5" y="5" width="14" height="17" rx="2"/><path d="M9 5V3h6v2M8 13l2.5 2.5L16 10"/>',
         "file": '<path d="M6 3h8l5 5v13H6zM14 3v5h5"/><path d="M14.5 12c-.6-.5-1.3-.7-2.1-.7-1.2 0-2.2.6-2.2 1.5 0 2.4 4.4 1.3 4.4 3.7 0 1-1 1.7-2.3 1.7-.9 0-1.8-.3-2.4-.8M12.3 9.5V20"/>',
@@ -559,12 +567,12 @@ def render_data_step() -> None:
     step_title(
         1,
         "Start with the freight book",
-        "Upload today’s operating files, or use the included broker dataset to walk through the complete decision flow immediately.",
+        "Use data connected from your source systems, or upload today’s operating files as CSVs.",
     )
 
-    upload_tab, demo_tab = st.tabs(
-        ["Upload CSVs", "Use current demo data"],
-        default="Use current demo data",
+    upload_tab, connected_tab = st.tabs(
+        ["Upload CSVs", "Connected data"],
+        default="Connected data",
     )
     with upload_tab:
         st.markdown("#### Required operating files")
@@ -624,9 +632,9 @@ def render_data_step() -> None:
                     st.session_state.optimization_result = None
                     go_to(2)
 
-    with demo_tab:
+    with connected_tab:
         st.markdown(
-            '<div class="callout success"><b>Client-demo path:</b> use a complete fictional brokerage dataset with open freight, carrier history, probabilistic capacity, recurring demand, and prior decision events.</div>',
+            '<div class="callout success"><b>Data connected from source systems:</b> open freight, carrier history, capacity signals, recurring demand, and prior decisions are ready to use. If you prefer not to connect source systems, upload the same inputs in the <b>Upload CSVs</b> tab.</div>',
             unsafe_allow_html=True,
         )
         assets = demo_assets()
@@ -658,10 +666,9 @@ def render_data_step() -> None:
             st.caption(f"Showing the first 20 of {len(preview_frame):,} rows · Source: {preview_source}")
             st.dataframe(preview_frame.head(20), hide_index=True, use_container_width=True)
 
-        st.caption("Synthetic companies, lanes, rates, and carrier behavior. No client or production information is included.")
-        if st.button("Use current demo data", type="primary", use_container_width=False):
+        if st.button("Use connected data", type="primary", use_container_width=False):
             st.session_state.overrides = {}
-            st.session_state.data_mode = "Demo data"
+            st.session_state.data_mode = "Connected source systems"
             st.session_state.optimization_result = None
             go_to(2)
 
@@ -1265,7 +1272,7 @@ def render_decisions_step(assets: Dict[str, pd.DataFrame]) -> None:
     if action_cols[action_index + 1].button("Start with new data", type="primary", width="stretch"):
         reset_workflow()
     st.markdown(
-        f'<div class="footer-note">Run created {st.session_state.get("run_at", "this session")} · Synthetic demo context · Decision support only; no carrier tender was executed.</div>',
+        f'<div class="footer-note">Run created {st.session_state.get("run_at", "this session")} · Source systems connected · Decision support only; no carrier tender was executed.</div>',
         unsafe_allow_html=True,
     )
 
