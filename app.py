@@ -1262,24 +1262,21 @@ def render_decisions_step(assets: Dict[str, pd.DataFrame]) -> None:
         replay_cols[3].metric("Illustrative recoverable value", money(replay_value), percent(replay_rate))
 
     with decisions_tab:
-        filter_cols = st.columns([1, 1, 3])
+        action_filter, _ = st.columns([1, 4])
         actions = ["All"] + sorted(recommendations["action"].unique().tolist())
-        selected_action = filter_cols[0].selectbox("Action", actions)
-        min_confidence = filter_cols[1].slider("Minimum confidence", 0.0, 1.0, 0.0, 0.05)
+        selected_action = action_filter.selectbox("Action", actions)
         queue = recommendations.copy()
         if selected_action != "All":
             queue = queue[queue["action"] == selected_action]
-        queue = queue[queue["confidence"] >= min_confidence]
         st.dataframe(
             queue[[
                 "recommendation_id", "action", "load_id", "carrier_name", "lane_id",
-                "expected_incremental_margin", "confidence", "expires_at", "status",
+                "expected_incremental_margin", "expires_at", "status",
             ]],
             hide_index=True,
             use_container_width=True,
             column_config={
                 "expected_incremental_margin": st.column_config.NumberColumn("Expected value", format="$%.0f"),
-                "confidence": st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1, format="%.0f%%"),
             },
         )
         if not queue.empty:
