@@ -833,9 +833,9 @@ def render_capacity_step(assets: Dict[str, pd.DataFrame]) -> None:
         )
         .transform_calculate(mid="(datum.start + datum.end) / 2")
         .encode(
-            y=alt.Y("origin_market_id:N", title="Pickup market", sort=market_order),
-            x=alt.X("start:Q", title="Open loads", axis=alt.Axis(tickMinStep=1)),
-            x2="end:Q",
+            x=alt.X("origin_market_id:N", title="Pickup market", sort=market_order),
+            y=alt.Y("start:Q", title="Open loads", axis=alt.Axis(tickMinStep=1)),
+            y2="end:Q",
             color=alt.Color(
                 "coverage_status:N",
                 title=None,
@@ -851,12 +851,13 @@ def render_capacity_step(assets: Dict[str, pd.DataFrame]) -> None:
             ],
         )
     )
-    bars = stacked.mark_bar(cornerRadius=4, size=30)
+    bars = stacked.mark_bar(cornerRadius=4, size=56)
     labels = stacked.transform_filter("datum.loads > 0").mark_text(
         fontWeight=700,
         baseline="middle",
     ).encode(
-        x=alt.X("mid:Q"),
+        x=alt.X("origin_market_id:N", sort=market_order),
+        y=alt.Y("mid:Q"),
         text=alt.Text("loads:Q", format=".0f"),
         color=alt.condition(
             "datum.coverage_status === 'Truck assigned'",
@@ -865,7 +866,7 @@ def render_capacity_step(assets: Dict[str, pd.DataFrame]) -> None:
         ),
     )
     st.markdown("#### Coverage by pickup market")
-    st.altair_chart((bars + labels).properties(height=285), use_container_width=True)
+    st.altair_chart((bars + labels).properties(height=315), use_container_width=True)
     markets_short = int((market["needs_truck"] > 0).sum())
     st.caption(
         f"{needs_truck_count} loads still need a truck across {markets_short} pickup markets."
