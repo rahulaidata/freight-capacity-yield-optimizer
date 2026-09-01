@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from src.data import load_demo_assets, quality_summary
-from src.optimizer import Scenario, build_recommendations, run_portfolio
+from src.optimizer import Scenario, build_recommendations, filter_recent_capacity, run_portfolio
 
 
 st.set_page_config(
@@ -368,9 +368,9 @@ def initialize_state() -> None:
         "overrides": {},
         "optimization_result": None,
         "recommendations": None,
-        "forecast_multiplier": 1.0,
-        "risk_multiplier": 1.0,
-        "confidence_floor": 0.45,
+        "reserve_truck_target": 2,
+        "reliability_spend_allowance": 250,
+        "capacity_confirmation_hours": 4,
         "decision_log": [],
     }
     for key, value in defaults.items():
@@ -775,9 +775,9 @@ def render_capacity_step(assets: Dict[str, pd.DataFrame]) -> None:
         assets["carrier_lane_stats"],
         assets["carrier_preferences"],
         Scenario(
-            forecast_multiplier=float(st.session_state.forecast_multiplier),
-            risk_multiplier=float(st.session_state.risk_multiplier),
-            capacity_confidence_floor=float(st.session_state.confidence_floor),
+            reserve_truck_target=int(st.session_state.reserve_truck_target),
+            reliability_spend_allowance=float(st.session_state.reliability_spend_allowance),
+            capacity_confirmation_hours=int(st.session_state.capacity_confirmation_hours),
         ),
     )
     covered_loads = coverage_result["optimized_open"]
@@ -918,52 +918,67 @@ def render_capacity_step(assets: Dict[str, pd.DataFrame]) -> None:
     render_bottom_navigation(2, 4, "Set operating assumptions")
 
 
+def reset_dispatch_rule_defaults() -> None:
+    st.session_state.reserve_truck_target = 2
+    st.session_state.reliability_spend_allowance = 250
+    st.session_state.capacity_confirmation_hours = 4
+
+
 def render_settings_step() -> None:
     step_title(
         4,
-        "Set operating assumptions",
-        "Choose how much uncertainty the first run should tolerate. These controls change reservation behavior and risk-adjusted contribution—not the underlying source data.",
+        "Set today’s dispatch rules",
+        "Use three practical controls to tell the optimizer how you want today’s truck book handled.",
     )
     left, middle, right = st.columns(3)
     with left:
-        st.markdown("#### Future-demand confidence")
-        st.session_state.forecast_multiplier = st.slider(
-            "Forecast confidence multiplier",
-            0.50,
-            1.20,
-            float(st.session_state.forecast_multiplier),
-            0.05,
-            help="Scales the probability that forecasted freight arrives.",
+        st.markdown("#### Trucks to keep open for late tenders")
+        st.slider(
+            "Reserved trucks",
+            0,
+            4,
+            step=1,
+            format="%d trucks",
+            help="Keeps this many trucks available for late or recurring tenders before assigning the rest.",
+            label_visibility="collapsed",
+            key="reserve_truck_target",
         )
-        st.caption("1.00 uses the forecast as supplied. Lower values make capacity reservations less likely.")
+        st.caption("Leave this many trucks unassigned until the late tender window closes.")
     with middle:
-        st.markdown("#### Service-risk posture")
-        st.session_state.risk_multiplier = st.slider(
-            "Failure-cost multiplier",
-            0.50,
-            2.00,
-            float(st.session_state.risk_multiplier),
-            0.10,
-            help="Scales expected costs from rejection, falloff, and service failure.",
+        st.markdown("#### Extra spend for a more reliable carrier")
+        st.slider(
+            "Reliability spend allowance",
+            0,
+            500,
+            step=50,
+            format="$%d per load",
+            help="Allows the optimizer to justify this much additional buy cost when carrier history shows materially stronger service.",
+            label_visibility="collapsed",
+            key="reliability_spend_allowance",
         )
-        st.caption("1.00 is balanced. Higher values favor reliable capacity over the lowest nominal buy rate.")
+        st.caption("Allow this much extra when it materially improves pickup and delivery reliability.")
     with right:
-        st.markdown("#### Capacity evidence")
-        st.session_state.confidence_floor = st.slider(
-            "Minimum availability confidence",
-            0.35,
-            0.90,
-            float(st.session_state.confidence_floor),
-            0.05,
-            help="Excludes weak or stale carrier capacity signals from allocation.",
+        st.markdown("#### Carrier confirmation age")
+        st.slider(
+            "Maximum confirmation age",
+            1,
+            12,
+            step=1,
+            format="%d hours",
+            help="Ignores carrier capacity that has not been reconfirmed within this many hours.",
+            label_visibility="collapsed",
+            key="capacity_confirmation_hours",
         )
-        st.caption("Signals below this floor remain visible but cannot consume an optimizer capacity unit.")
+        st.caption("Ignore a truck unless its availability was reconfirmed within this window.")
 
-    st.markdown('<div class="callout"><b>Recommended first pass:</b> use the supplied forecast, balanced service risk, and a 45% capacity-confidence floor. This shows the economic tradeoff between immediate assignment and reservation without overstating certainty.</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="callout"><b>Recommended first pass:</b> keep <b>2 trucks</b> open, allow <b>$250 extra per load</b> for stronger service, and require capacity reconfirmed within <b>4 hours</b>.</div>',
+        unsafe_allow_html=True,
+    )
 
-    with st.expander("Portfolio objective"):
+    with st.expander("How these rules change the plan"):
         st.markdown(
-            "Maximize expected customer revenue minus carrier buy cost, fallback coverage cost, and service-risk cost, plus the probability-weighted option value of capacity reserved for likely future freight."
+            "The optimizer holds the selected number of trucks for late tenders, can favor a stronger carrier when the price difference stays within your service allowance, and removes capacity that has not been reconfirmed recently enough."
         )
     with st.expander("Hard feasibility rules"):
         st.markdown(
@@ -977,11 +992,11 @@ def render_settings_step() -> None:
     left_nav, reset_col, run_col, _ = st.columns([1, 1.3, 1.8, 4])
     if left_nav.button("Back", use_container_width=True):
         go_to(3)
-    if reset_col.button("Reset recommended", use_container_width=True):
-        st.session_state.forecast_multiplier = 1.0
-        st.session_state.risk_multiplier = 1.0
-        st.session_state.confidence_floor = 0.45
-        st.rerun()
+    reset_col.button(
+        "Reset recommended",
+        use_container_width=True,
+        on_click=reset_dispatch_rule_defaults,
+    )
     if run_col.button("Review and build", type="primary", use_container_width=True):
         st.session_state.optimization_result = None
         st.session_state.recommendations = None
@@ -1019,29 +1034,32 @@ def render_optimize_step(assets: Dict[str, pd.DataFrame]) -> None:
     open_loads = assets["open_loads"]
     capacity = assets["capacity_signals"]
     forecast = assets["forecast_demand"]
-    usable_capacity = capacity[
-        capacity["availability_confidence"] >= st.session_state.confidence_floor
-    ]
+    usable_capacity = filter_recent_capacity(
+        open_loads,
+        capacity,
+        st.session_state.capacity_confirmation_hours,
+    )
+    usable_capacity = usable_capacity[usable_capacity["availability_confidence"] >= 0.45]
     stages = [
         (
             "Reading today’s freight",
             f"{len(open_loads):,} open loads across {open_loads['lane_id'].nunique()} lanes are ready to plan.",
         ),
         (
-            "Checking available trucks",
-            f"{int(usable_capacity['truck_count'].sum())} usable trucks from {usable_capacity['carrier_id'].nunique()} carriers have a strong enough availability signal.",
+            "Checking recently confirmed trucks",
+            f"{int(usable_capacity['truck_count'].sum())} trucks from {usable_capacity['carrier_id'].nunique()} carriers were reconfirmed within {st.session_state.capacity_confirmation_hours} hours.",
         ),
         (
             "Matching lanes, equipment, and pickup times",
             "Removing choices where the truck is in the wrong market, has the wrong equipment, or cannot meet the pickup window.",
         ),
         (
-            "Reviewing carrier history",
-            "Using past lane support, acceptance, and on-time service to judge which matches are dependable.",
+            "Balancing price and carrier reliability",
+            f"Allowing up to ${st.session_state.reliability_spend_allowance:,.0f} extra per load when carrier history shows materially stronger service.",
         ),
         (
-            "Keeping upcoming freight in view",
-            f"Checking {len(forecast):,} recurring freight patterns before using all of today’s capacity.",
+            "Holding trucks for late tenders",
+            f"Keeping {st.session_state.reserve_truck_target} trucks open while checking {len(forecast):,} recurring freight patterns.",
         ),
         (
             "Comparing regular and backup coverage",
@@ -1081,9 +1099,9 @@ def render_optimize_step(assets: Dict[str, pd.DataFrame]) -> None:
         go_to(4)
     if run_col.button("Build recommended plan", type="primary", use_container_width=True):
         scenario = Scenario(
-            forecast_multiplier=st.session_state.forecast_multiplier,
-            risk_multiplier=st.session_state.risk_multiplier,
-            capacity_confidence_floor=st.session_state.confidence_floor,
+            reserve_truck_target=st.session_state.reserve_truck_target,
+            reliability_spend_allowance=st.session_state.reliability_spend_allowance,
+            capacity_confirmation_hours=st.session_state.capacity_confirmation_hours,
         )
         progress = st.progress(0, text="Starting the dispatch review…")
         stage_area = st.empty()
