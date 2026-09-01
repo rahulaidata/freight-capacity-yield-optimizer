@@ -73,11 +73,20 @@ st.markdown(
       .demo-badge { background:#EAF4FF; border:1px solid #C9E0F7; color:#245D93; padding:6px 11px; border-radius:8px; font-size:.78rem; font-weight:750; }
       .step-kicker { color:#7C8CA2; font-size:.84rem; font-weight:750; margin-top:30px; }
       .lead { color:#63758B; font-size:1rem; max-width:850px; margin-bottom:22px; }
-      .info-card { background:white; border:1px solid var(--line); border-radius:12px; padding:17px 19px; height:150px; box-sizing:border-box; display:flex; flex-direction:column; }
+      .info-card { background:white; border:1px solid var(--line); border-radius:12px; padding:17px 19px 24px; height:176px; box-sizing:border-box; display:flex; flex-direction:column; }
       .info-card h4 { margin:0 0 7px; color:var(--ink); font-size:.96rem; }
       .info-card p { margin:0; color:var(--muted); font-size:.84rem; line-height:1.48; }
       .info-card .tag { align-self:flex-start; margin-top:auto; }
       .tag { display:inline-block; margin-top:10px; background:#F2F5F9; color:#5F7188; border-radius:999px; padding:3px 8px; font-size:.7rem; font-weight:750; }
+      .demo-stat-card { position:relative; display:flex; flex-direction:column; min-height:132px; box-sizing:border-box; padding:18px 19px 16px; background:white; border:1px solid var(--line); border-radius:12px; text-decoration:none !important; box-shadow:0 5px 16px rgba(25,52,87,.045); transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease; }
+      a.demo-stat-card:hover { transform:translateY(-2px); border-color:#8DB7F5; box-shadow:0 8px 20px rgba(25,52,87,.09); }
+      .demo-stat-card.active { border-color:#6FA3EE; background:#F8FBFF; box-shadow:0 0 0 1px rgba(111,163,238,.18),0 8px 20px rgba(25,52,87,.08); }
+      .demo-stat-source { position:absolute; top:14px; right:14px; display:inline-block; max-width:110px; background:#EEF4FC; color:#496B94; border-radius:999px; padding:3px 8px; font-size:.65rem; line-height:1.25; font-weight:800; white-space:nowrap; }
+      .demo-stat-label { color:var(--muted); font-size:.84rem; line-height:1.25; font-weight:700; padding-right:105px; }
+      .demo-stat-value { color:var(--ink); font-size:2rem; line-height:1.1; font-weight:760; margin-top:14px; }
+      .demo-stat-action { color:#245D93; font-size:.7rem; line-height:1.2; font-weight:800; margin-top:auto; padding-top:10px; }
+      [data-testid="stExpander"] { background:white; border-color:var(--line); border-radius:10px; }
+      [data-testid="stExpander"] summary { min-height:50px; }
       .callout { background:#EEF4FC; border:1px solid #D4E1F1; border-radius:10px; padding:14px 17px; color:#34516F; margin:12px 0 20px; }
       .callout.success { background:#EDF9F4; border-color:#CDEBDD; color:#23664F; }
       .callout.warning { background:#FFF8EC; border-color:#F1DFC0; color:#825B22; }
@@ -613,11 +622,34 @@ def render_data_step() -> None:
             unsafe_allow_html=True,
         )
         assets = demo_assets()
+        preview_options = [
+            ("historical_loads", "Historical loads", "TMS history"),
+            ("open_loads", "Open loads", "TMS"),
+            ("capacity_signals", "Capacity signals", "Capacity sheet"),
+            ("forecast_demand", "Forecast patterns", "Forecast"),
+        ]
+        selected_preview = st.query_params.get("preview")
         cols = st.columns(4)
-        cols[0].metric("Historical loads", f"{len(assets['historical_loads']):,}")
-        cols[1].metric("Open loads", len(assets["open_loads"]))
-        cols[2].metric("Capacity signals", len(assets["capacity_signals"]))
-        cols[3].metric("Forecast patterns", len(assets["forecast_demand"]))
+        for column, (name, label, source) in zip(cols, preview_options):
+            active = " active" if selected_preview == name else ""
+            column.markdown(
+                f'<a class="demo-stat-card{active}" href="?agent=trucking&amp;preview={name}" target="_self">'
+                f'<span class="demo-stat-source">{source}</span>'
+                f'<span class="demo-stat-label">{label}</span>'
+                f'<span class="demo-stat-value">{len(assets[name]):,}</span>'
+                '<span class="demo-stat-action">View rows →</span>'
+                '</a>',
+                unsafe_allow_html=True,
+            )
+
+        preview_lookup = {name: (label, source) for name, label, source in preview_options}
+        if selected_preview in preview_lookup:
+            preview_label, preview_source = preview_lookup[selected_preview]
+            preview_frame = assets[selected_preview]
+            st.markdown(f"#### {preview_label} rows")
+            st.caption(f"Showing the first 20 of {len(preview_frame):,} rows · Source: {preview_source}")
+            st.dataframe(preview_frame.head(20), hide_index=True, use_container_width=True)
+
         st.caption("Synthetic companies, lanes, rates, and carrier behavior. No client or production information is included.")
         if st.button("Use current demo data", type="primary", use_container_width=False):
             st.session_state.overrides = {}
@@ -625,35 +657,35 @@ def render_data_step() -> None:
             st.session_state.optimization_result = None
             go_to(2)
 
-    st.markdown("#### What the product reads")
-    cards = st.columns(4)
-    definitions = [
-        ("Open freight", "Loads, customers, lanes, pickup windows, sell rates, fallback rates, urgency, and service tiers.", "TMS · required"),
-        ("Carrier capacity", "Origin pool, equipment, available window, expected buy rate, truck count, evidence source, and confidence.", "Capacity sheet · required"),
-        ("Carrier history", "Booked rates, acceptance, on-time service, falloff, lane support, and relationship strength.", "TMS history · recommended"),
-        ("Expected freight", "Recurring customer tenders, expected count and revenue, arrival probability, and reserve deadline.", "Forecast · optional"),
-    ]
-    for card, (title, body, tag) in zip(cards, definitions):
-        card.markdown(
-            f'<div class="info-card"><h4>{title}</h4><p>{body}</p><span class="tag">{tag}</span></div>',
-            unsafe_allow_html=True,
-        )
+    with st.expander("What the product reads", expanded=False):
+        cards = st.columns(4)
+        definitions = [
+            ("Open freight", "Loads, customers, lanes, pickup windows, sell rates, fallback rates, urgency, and service tiers.", "TMS · required"),
+            ("Carrier capacity", "Origin pool, equipment, available window, expected buy rate, truck count, evidence source, and confidence.", "Capacity sheet · required"),
+            ("Carrier history", "Booked rates, acceptance, on-time service, falloff, lane support, and relationship strength.", "TMS history · recommended"),
+            ("Expected freight", "Recurring customer tenders, expected count and revenue, arrival probability, and reserve deadline.", "Forecast · optional"),
+        ]
+        for card, (title, body, tag) in zip(cards, definitions):
+            card.markdown(
+                f'<div class="info-card"><h4>{title}</h4><p>{body}</p><span class="tag">{tag}</span></div>',
+                unsafe_allow_html=True,
+            )
 
-    st.markdown("#### Download canonical examples")
-    assets = demo_assets()
-    downloads = st.columns(4)
-    for column, name, label in zip(
-        downloads,
-        ["open_loads", "capacity_signals", "historical_loads", "forecast_demand"],
-        ["Open loads", "Capacity", "History", "Forecast"],
-    ):
-        column.download_button(
-            f"{label} example",
-            assets[name].head(25).to_csv(index=False).encode("utf-8"),
-            file_name=f"{name}_example.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+    with st.expander("Download canonical examples", expanded=False):
+        assets = demo_assets()
+        downloads = st.columns(4)
+        for column, name, label in zip(
+            downloads,
+            ["open_loads", "capacity_signals", "historical_loads", "forecast_demand"],
+            ["Open loads", "Capacity", "History", "Forecast"],
+        ):
+            column.download_button(
+                f"{label} example",
+                assets[name].head(25).to_csv(index=False).encode("utf-8"),
+                file_name=f"{name}_example.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
 
 def render_validate_step(assets: Dict[str, pd.DataFrame]) -> None:
