@@ -49,9 +49,17 @@ st.markdown(
       .stButton > button, .stDownloadButton > button {
         border-radius:9px; min-height:2.85rem; font-weight:700; border-color:#C8D5E5;
       }
-      .stButton > button[kind="primary"] { background:var(--navy); border-color:var(--navy); }
+      .stButton > button[kind="primary"], button[data-testid="stBaseButton-primary"] {
+        background:var(--navy) !important; border-color:var(--navy) !important;
+        color:white !important; opacity:1 !important;
+      }
+      .stButton > button[kind="primary"] p, button[data-testid="stBaseButton-primary"] p {
+        color:white !important; opacity:1 !important;
+      }
       .stButton > button:hover { border-color:var(--navy); color:var(--navy); }
-      .stButton > button[kind="primary"]:hover { color:white; background:#0D2B52; }
+      .stButton > button[kind="primary"]:hover, button[data-testid="stBaseButton-primary"]:hover {
+        color:white !important; background:#0D2B52 !important;
+      }
       div[data-baseweb="tab-list"] { gap:24px; border-bottom:1px solid var(--line); }
       button[data-baseweb="tab"] { padding:10px 4px; }
       .brandbar { display:flex; align-items:center; justify-content:space-between; padding:0 2px 20px; border-bottom:1px solid var(--line); margin-bottom:14px; }
@@ -65,9 +73,10 @@ st.markdown(
       .demo-badge { background:#EAF4FF; border:1px solid #C9E0F7; color:#245D93; padding:6px 11px; border-radius:8px; font-size:.78rem; font-weight:750; }
       .step-kicker { color:#7C8CA2; font-size:.84rem; font-weight:750; margin-top:30px; }
       .lead { color:#63758B; font-size:1rem; max-width:850px; margin-bottom:22px; }
-      .info-card { background:white; border:1px solid var(--line); border-radius:12px; padding:17px 19px; min-height:126px; }
+      .info-card { background:white; border:1px solid var(--line); border-radius:12px; padding:17px 19px; height:150px; box-sizing:border-box; display:flex; flex-direction:column; }
       .info-card h4 { margin:0 0 7px; color:var(--ink); font-size:.96rem; }
       .info-card p { margin:0; color:var(--muted); font-size:.84rem; line-height:1.48; }
+      .info-card .tag { align-self:flex-start; margin-top:auto; }
       .tag { display:inline-block; margin-top:10px; background:#F2F5F9; color:#5F7188; border-radius:999px; padding:3px 8px; font-size:.7rem; font-weight:750; }
       .callout { background:#EEF4FC; border:1px solid #D4E1F1; border-radius:10px; padding:14px 17px; color:#34516F; margin:12px 0 20px; }
       .callout.success { background:#EDF9F4; border-color:#CDEBDD; color:#23664F; }
@@ -536,7 +545,10 @@ def render_data_step() -> None:
         "Upload today’s operating files, or use the included broker dataset to walk through the complete decision flow immediately.",
     )
 
-    upload_tab, demo_tab = st.tabs(["Upload CSVs", "Use current demo data"])
+    upload_tab, demo_tab = st.tabs(
+        ["Upload CSVs", "Use current demo data"],
+        default="Use current demo data",
+    )
     with upload_tab:
         st.markdown("#### Required operating files")
         left, right = st.columns(2)
