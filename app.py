@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from html import escape
 from typing import Dict
@@ -92,6 +93,12 @@ st.markdown(
       .callout.warning { background:#FFF8EC; border-color:#F1DFC0; color:#825B22; }
       .checkline { display:flex; gap:11px; padding:8px 0; color:#42546A; }
       .check { color:var(--green); font-weight:900; }
+      .build-stage { display:flex; gap:12px; padding:10px 0; }
+      .build-stage-icon { width:22px; flex:0 0 22px; color:#718197; font-weight:850; }
+      .build-stage.complete .build-stage-icon { color:var(--green); }
+      .build-stage.current .build-stage-icon { color:var(--navy); }
+      .build-stage-title { color:var(--ink); font-weight:780; margin-bottom:2px; }
+      .build-stage-detail { color:var(--muted); font-size:.84rem; line-height:1.45; }
       .source-line { color:#8391A4; font-size:.82rem; margin-top:8px; }
       .section-rule { border-top:1px solid var(--line); margin:24px 0; }
       .decision-card { background:white; border:1px solid var(--line); border-radius:12px; padding:18px; }
@@ -146,6 +153,7 @@ st.markdown(
 
 
 STEPS = ["Data", "Validate", "Capacity", "Settings", "Optimize", "Decisions"]
+BUILD_STAGE_SECONDS = 2.5
 
 UPLOAD_DATES = {
     "open_loads": [
@@ -915,7 +923,31 @@ def render_settings_step() -> None:
         st.session_state.confidence_floor = 0.45
         st.rerun()
     if run_col.button("Review and build", type="primary", use_container_width=True):
+        st.session_state.optimization_result = None
+        st.session_state.recommendations = None
         go_to(5)
+
+
+def build_stage_markup(
+    stages: list[tuple[str, str]],
+    completed_count: int,
+    current_index: int | None = None,
+) -> str:
+    rows = []
+    for index, (title, detail) in enumerate(stages):
+        if index < completed_count:
+            state, icon = "complete", "✓"
+        elif index == current_index:
+            state, icon = "current", "●"
+        else:
+            continue
+        rows.append(
+            f'<div class="build-stage {state}">'
+            f'<span class="build-stage-icon">{icon}</span>'
+            f'<div><div class="build-stage-title">{title}</div>'
+            f'<div class="build-stage-detail">{detail}</div></div></div>'
+        )
+    return "".join(rows)
 
 
 def render_optimize_step(assets: Dict[str, pd.DataFrame]) -> None:
@@ -927,17 +959,60 @@ def render_optimize_step(assets: Dict[str, pd.DataFrame]) -> None:
     open_loads = assets["open_loads"]
     capacity = assets["capacity_signals"]
     forecast = assets["forecast_demand"]
-    checks = [
-        f"Checking {len(open_loads):,} open loads across {open_loads['lane_id'].nunique()} lanes.",
-        f"Checking {int(capacity['truck_count'].sum())} available trucks from {capacity['carrier_id'].nunique()} carriers.",
-        "Keeping likely upcoming loads in view so today’s choices do not leave tomorrow’s freight uncovered.",
-        "Using capacity we can reasonably trust and giving reliable service more weight than the cheapest rate.",
+    usable_capacity = capacity[
+        capacity["availability_confidence"] >= st.session_state.confidence_floor
     ]
-    for check in checks:
-        st.markdown(f'<div class="checkline"><span class="check">✓</span><span>{check}</span></div>', unsafe_allow_html=True)
+    stages = [
+        (
+            "Reading today’s freight",
+            f"{len(open_loads):,} open loads across {open_loads['lane_id'].nunique()} lanes are ready to plan.",
+        ),
+        (
+            "Checking available trucks",
+            f"{int(usable_capacity['truck_count'].sum())} usable trucks from {usable_capacity['carrier_id'].nunique()} carriers have a strong enough availability signal.",
+        ),
+        (
+            "Matching lanes, equipment, and pickup times",
+            "Removing choices where the truck is in the wrong market, has the wrong equipment, or cannot meet the pickup window.",
+        ),
+        (
+            "Reviewing carrier history",
+            "Using past lane support, acceptance, and on-time service to judge which matches are dependable.",
+        ),
+        (
+            "Keeping upcoming freight in view",
+            f"Checking {len(forecast):,} recurring freight patterns before using all of today’s capacity.",
+        ),
+        (
+            "Comparing regular and backup coverage",
+            "Checking known-carrier choices against spot coverage so every open load still has a workable backup.",
+        ),
+        (
+            "Building the best overall dispatch plan",
+            "Placing each truck where it helps the full book of freight—not simply the first load in the queue.",
+        ),
+        (
+            "Checking every recommendation",
+            "Confirming that no truck is used twice and every recommendation follows the operating rules.",
+        ),
+    ]
+
+    if st.session_state.optimization_result is not None and st.session_state.recommendations is not None:
+        st.markdown(build_stage_markup(stages, len(stages)), unsafe_allow_html=True)
+        recommendation_count = len(st.session_state.recommendations)
+        st.markdown(
+            f'<div class="callout success"><b>Dispatch plan ready:</b> {recommendation_count} recommendations passed the final checks. Review the proposed assignments, reserves, releases, and backup coverage when you are ready.</div>',
+            unsafe_allow_html=True,
+        )
+        back_col, results_col, _ = st.columns([1, 1.7, 5])
+        if back_col.button("Back", use_container_width=True):
+            go_to(4)
+        if results_col.button("See results", type="primary", use_container_width=True):
+            go_to(6)
+        return
 
     st.markdown(
-        '<div class="callout"><b>What happens next:</b> we compare all open loads and available trucks at the same time. The recommended plan puts each truck where it creates the most value, while keeping backup coverage and likely upcoming freight in mind.</div>',
+        '<div class="callout"><b>What happens next:</b> we compare all open loads and available trucks at the same time. You will see each check as it finishes, and the app will wait here until you choose to open the results.</div>',
         unsafe_allow_html=True,
     )
 
@@ -950,7 +1025,27 @@ def render_optimize_step(assets: Dict[str, pd.DataFrame]) -> None:
             risk_multiplier=st.session_state.risk_multiplier,
             capacity_confidence_floor=st.session_state.confidence_floor,
         )
-        with st.spinner("Allocating capacity across the freight book…"):
+        progress = st.progress(0, text="Starting the dispatch review…")
+        stage_area = st.empty()
+        result = None
+        recommendations = None
+        try:
+            for index in range(6):
+                stage_area.markdown(
+                    build_stage_markup(stages, index, index),
+                    unsafe_allow_html=True,
+                )
+                progress.progress(
+                    (index + 1) / len(stages),
+                    text=f"Step {index + 1} of {len(stages)} · {stages[index][0]}",
+                )
+                time.sleep(BUILD_STAGE_SECONDS)
+
+            stage_area.markdown(
+                build_stage_markup(stages, 6, 6),
+                unsafe_allow_html=True,
+            )
+            progress.progress(7 / len(stages), text=f"Step 7 of {len(stages)} · {stages[6][0]}")
             result = run_portfolio(
                 assets["open_loads"],
                 assets["forecast_demand"],
@@ -959,11 +1054,24 @@ def render_optimize_step(assets: Dict[str, pd.DataFrame]) -> None:
                 assets["carrier_preferences"],
                 scenario,
             )
+            time.sleep(BUILD_STAGE_SECONDS)
             recommendations = build_recommendations(result, assets["open_loads"], assets["carriers"])
+
+            stage_area.markdown(
+                build_stage_markup(stages, 7, 7),
+                unsafe_allow_html=True,
+            )
+            progress.progress(1.0, text=f"Step 8 of {len(stages)} · {stages[7][0]}")
+            time.sleep(BUILD_STAGE_SECONDS)
+
             st.session_state.optimization_result = result
             st.session_state.recommendations = recommendations
             st.session_state.run_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        go_to(6)
+            st.rerun()
+        except Exception:
+            progress.empty()
+            stage_area.empty()
+            st.error("We couldn’t finish the dispatch plan. Please review the inputs and try again.")
 
 
 def allocation_comparison(result: dict, assets: Dict[str, pd.DataFrame]) -> pd.DataFrame:
