@@ -762,62 +762,114 @@ def render_validate_step(assets: Dict[str, pd.DataFrame]) -> None:
 def render_capacity_step(assets: Dict[str, pd.DataFrame]) -> None:
     step_title(
         3,
-        "See demand and capacity together",
-        "The optimizer works across the whole book. This is the shared market picture it will use—not a one-load carrier search.",
+        "See what is covered—and what still needs a truck",
+        "Focus the team on the open loads that still need action today.",
     )
     open_loads = assets["open_loads"]
     capacity = assets["capacity_signals"].copy()
     forecast = assets["forecast_demand"]
-    capacity["expected_trucks"] = capacity["truck_count"] * capacity["availability_confidence"]
+    coverage_result = run_portfolio(
+        open_loads,
+        forecast,
+        capacity,
+        assets["carrier_lane_stats"],
+        assets["carrier_preferences"],
+        Scenario(
+            forecast_multiplier=float(st.session_state.forecast_multiplier),
+            risk_multiplier=float(st.session_state.risk_multiplier),
+            capacity_confidence_floor=float(st.session_state.confidence_floor),
+        ),
+    )
+    covered_loads = coverage_result["optimized_open"]
     demand_market = open_loads.groupby("origin_market_id", as_index=False).agg(
         open_loads=("load_id", "count"),
-        customer_revenue=("customer_sell_rate", "sum"),
-        fallback_exposure=("fallback_buy_rate", "sum"),
     )
-    capacity_market = capacity.groupby("origin_market_id", as_index=False).agg(
-        signaled_trucks=("truck_count", "sum"), expected_trucks=("expected_trucks", "sum")
-    )
-    forecast_market = forecast.groupby("origin_market_id", as_index=False).agg(
-        forecast_loads=("expected_load_count", "sum")
-    )
-    market = demand_market.merge(capacity_market, on="origin_market_id", how="outer").merge(
-        forecast_market, on="origin_market_id", how="outer"
-    ).fillna(0)
-    market["expected_gap"] = market["expected_trucks"] - market["open_loads"]
+    if covered_loads.empty:
+        covered_market = pd.DataFrame(columns=["origin_market_id", "loads_covered"])
+    else:
+        covered_market = (
+            covered_loads[["load_id"]]
+            .drop_duplicates()
+            .merge(open_loads[["load_id", "origin_market_id"]], on="load_id", how="left")
+            .groupby("origin_market_id", as_index=False)
+            .agg(loads_covered=("load_id", "count"))
+        )
+    market = demand_market.merge(covered_market, on="origin_market_id", how="left").fillna(0)
+    market["loads_covered"] = market["loads_covered"].astype(int)
+    market["needs_truck"] = (market["open_loads"] - market["loads_covered"]).astype(int)
+
+    covered_count = int(market["loads_covered"].sum())
+    needs_truck_count = int(market["needs_truck"].sum())
 
     metrics = st.columns(5)
     metrics[0].metric("Known open loads", len(open_loads))
     metrics[1].metric("Urgent loads", int(open_loads["priority"].isin(["HIGH", "CRITICAL"]).sum()))
-    metrics[2].metric("Signaled trucks", int(capacity["truck_count"].sum()))
-    metrics[3].metric("Probability-weighted trucks", f"{capacity['expected_trucks'].sum():.1f}")
-    metrics[4].metric("Expected future loads", f"{forecast['expected_load_count'].sum():.1f}")
+    metrics[2].metric("Trucks ready now", int(capacity["truck_count"].sum()))
+    metrics[3].metric("Loads covered", covered_count)
+    metrics[4].metric("Still need a truck", needs_truck_count)
 
-    chart_data = market.melt(
+    coverage_chart = market.melt(
         id_vars="origin_market_id",
-        value_vars=["open_loads", "expected_trucks", "forecast_loads"],
-        var_name="book_component",
-        value_name="units",
+        value_vars=["loads_covered", "needs_truck"],
+        var_name="coverage_status",
+        value_name="loads",
     )
-    chart = (
-        alt.Chart(chart_data)
-        .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+    coverage_chart["coverage_status"] = coverage_chart["coverage_status"].map(
+        {"loads_covered": "Truck assigned", "needs_truck": "Needs a truck"}
+    )
+    coverage_chart["coverage_order"] = coverage_chart["coverage_status"].map(
+        {"Truck assigned": 0, "Needs a truck": 1}
+    )
+    market_order = market.sort_values(
+        ["open_loads", "origin_market_id"], ascending=[False, True]
+    )["origin_market_id"].tolist()
+    stacked = (
+        alt.Chart(coverage_chart)
+        .transform_stack(
+            stack="loads",
+            groupby=["origin_market_id"],
+            sort=[alt.SortField(field="coverage_order", order="ascending")],
+            as_=["start", "end"],
+        )
+        .transform_calculate(mid="(datum.start + datum.end) / 2")
         .encode(
-            x=alt.X("origin_market_id:N", title="Origin market"),
-            xOffset="book_component:N",
-            y=alt.Y("units:Q", title="Loads / probability-weighted trucks"),
+            y=alt.Y("origin_market_id:N", title="Pickup market", sort=market_order),
+            x=alt.X("start:Q", title="Open loads", axis=alt.Axis(tickMinStep=1)),
+            x2="end:Q",
             color=alt.Color(
-                "book_component:N",
+                "coverage_status:N",
                 title=None,
                 scale=alt.Scale(
-                    domain=["open_loads", "expected_trucks", "forecast_loads"],
-                    range=["#123663", "#38A88A", "#E2A33A"],
+                    domain=["Truck assigned", "Needs a truck"],
+                    range=["#123663", "#E2A33A"],
                 ),
             ),
-            tooltip=["origin_market_id", "book_component", alt.Tooltip("units:Q", format=".1f")],
+            tooltip=[
+                alt.Tooltip("origin_market_id:N", title="Pickup market"),
+                alt.Tooltip("coverage_status:N", title="Status"),
+                alt.Tooltip("loads:Q", title="Loads", format=".0f"),
+            ],
         )
-        .properties(height=300)
     )
-    st.altair_chart(chart, use_container_width=True)
+    bars = stacked.mark_bar(cornerRadius=4, size=30)
+    labels = stacked.transform_filter("datum.loads > 0").mark_text(
+        fontWeight=700,
+        baseline="middle",
+    ).encode(
+        x=alt.X("mid:Q"),
+        text=alt.Text("loads:Q", format=".0f"),
+        color=alt.condition(
+            "datum.coverage_status === 'Truck assigned'",
+            alt.value("white"),
+            alt.value("#5E4215"),
+        ),
+    )
+    st.markdown("#### Coverage by pickup market")
+    st.altair_chart((bars + labels).properties(height=285), use_container_width=True)
+    markets_short = int((market["needs_truck"] > 0).sum())
+    st.caption(
+        f"{needs_truck_count} loads still need a truck across {markets_short} pickup markets."
+    )
 
     known_tab, capacity_tab, forecast_tab = st.tabs(["Known freight", "Carrier capacity", "Forecasted freight"])
     with known_tab:
